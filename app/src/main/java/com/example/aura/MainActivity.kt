@@ -37,9 +37,30 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     // Text to Speech
     private lateinit var tts: android.speech.tts.TextToSpeech
 
+//
+        private lateinit var fusedLocationClient: com.google.android.gms.location.FusedLocationProviderClient
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val perms = mutableListOf(
+            android.Manifest.permission.SEND_SMS,
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            perms.add(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
+
+        androidx.core.app.ActivityCompat.requestPermissions(
+            this,
+            perms.toTypedArray(),
+            101
+        )
+
 
         // Setup accelerometer
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -53,6 +74,9 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                 tts.language = java.util.Locale.US
             }
         }
+        fusedLocationClient = com.google.android.gms.location.LocationServices
+            .getFusedLocationProviderClient(this)
+
 
         setContent {
             AuraTheme {
@@ -116,23 +140,137 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     // ---------------- EMERGENCY ACTION ----------------
+//    private fun triggerEmergency() {
+//
+//        runOnUiThread {
+//
+//            // Speak emergency loudly
+//            tts.speak(
+//                "Emergency! Emergency!",
+//                android.speech.tts.TextToSpeech.QUEUE_FLUSH,
+//                null,
+//                null
+//            )
+//
+//            // OPTIONAL: play siren too
+//            // val mediaPlayer = MediaPlayer.create(this, R.raw.siren)
+//            // mediaPlayer.start()
+//        }
+//    }
+
+
     private fun triggerEmergency() {
 
-        runOnUiThread {
+        val phoneNumber = "+919799919727"
+        val smsManager = android.telephony.SmsManager.getDefault()
 
-            // Speak emergency loudly
-            tts.speak(
-                "Emergency! Emergency!",
-                android.speech.tts.TextToSpeech.QUEUE_FLUSH,
-                null,
-                null
-            )
-
-            // OPTIONAL: play siren too
-            // val mediaPlayer = MediaPlayer.create(this, R.raw.siren)
-            // mediaPlayer.start()
+        if (androidx.core.app.ActivityCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            Toast.makeText(this, "No location permission", Toast.LENGTH_LONG).show()
+            return
         }
+
+        Toast.makeText(this, "Getting location…", Toast.LENGTH_SHORT).show()
+
+        var sent = false
+
+        // Try last known first (instant if available)
+        fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+            if (loc != null && !sent) {
+                val msg = "🚨 EMERGENCY!\nhttps://maps.google.com/?q=${loc.latitude},${loc.longitude}"
+                try {
+                    smsManager.sendTextMessage(phoneNumber, null, msg, null, null)
+                    Toast.makeText(this, "Sent with lastLocation", Toast.LENGTH_LONG).show()
+                    sent = true
+                } catch (e: Exception) {
+                    Toast.makeText(this, "SMS error: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.addOnFailureListener {
+            Toast.makeText(this, "lastLocation failed", Toast.LENGTH_SHORT).show()
+        }
+
+        // Request fresh GPS after 2s if not sent
+        android.os.Handler(mainLooper).postDelayed({
+
+            if (sent) return@postDelayed
+
+            Toast.makeText(this, "Requesting fresh GPS…", Toast.LENGTH_SHORT).show()
+
+            val req = com.google.android.gms.location.LocationRequest.Builder(
+                com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY, 1000
+            ).setMaxUpdates(1).build()
+
+            val cb = object : com.google.android.gms.location.LocationCallback() {
+                override fun onLocationResult(res: com.google.android.gms.location.LocationResult) {
+                    val loc = res.lastLocation
+                    if (loc != null && !sent) {
+                        val msg = "🚨 EMERGENCY!\nhttps://maps.google.com/?q=${loc.latitude},${loc.longitude}"
+                        try {
+                            smsManager.sendTextMessage(phoneNumber, null, msg, null, null)
+                            Toast.makeText(this@MainActivity, "Sent with fresh GPS", Toast.LENGTH_LONG).show()
+                            sent = true
+                        } catch (e: Exception) {
+                            Toast.makeText(this@MainActivity, "SMS error: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        Toast.makeText(this@MainActivity, "Fresh GPS null", Toast.LENGTH_SHORT).show()
+                    }
+                    fusedLocationClient.removeLocationUpdates(this)
+                }
+            }
+
+            fusedLocationClient.requestLocationUpdates(req, cb, mainLooper)
+
+        }, 2000)
+
+        // Hard fallback after 7s
+        android.os.Handler(mainLooper).postDelayed({
+            if (!sent) {
+                try {
+                    smsManager.sendTextMessage(
+                        phoneNumber, null,
+                        "🚨 EMERGENCY! Location unavailable.",
+                        null, null
+                    )
+                    Toast.makeText(this, "Fallback SMS sent", Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Fallback SMS error: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }, 7000)
     }
+
+
+
+
+
+
+//    private fun triggerEmergency() {
+//
+//        val phoneNumber = "919799919727"
+//
+//        val smsManager = android.telephony.SmsManager.getDefault()
+//
+//        try {
+//            smsManager.sendTextMessage(
+//                phoneNumber,
+//                null,
+//                "TEST MESSAGE FROM AURA",
+//                null,
+//                null
+//            )
+//
+//            Toast.makeText(this, "SMS SENT", Toast.LENGTH_LONG).show()
+//
+//        } catch (e: Exception) {
+//            Toast.makeText(this, "SMS FAILED: ${e.message}", Toast.LENGTH_LONG).show()
+//        }
+//    }
+
 
 }
 
