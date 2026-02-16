@@ -9,25 +9,59 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
+//@Composable
+//fun AuraApp(onSOSClick: () -> Unit,
+//            onRecordClick: () -> Unit,
+//            onLocationClick: () -> Unit) {
+//
+//    var showSplash by remember { mutableStateOf(true) }
+//
+//    LaunchedEffect(Unit) {
+//        kotlinx.coroutines.delay(4000)
+//        showSplash = false
+//    }
+//
+//    if (showSplash) {
+//        AuraSplashScreen()
+//    } else {
+//        HomeScreen(
+//            onSOSClick = onSOSClick,
+//            onRecordClick = onRecordClick,
+//            onLocationClick = onLocationClick
+//        )
+//    }
+//}
+
 @Composable
-fun AuraApp(onSOSClick: () -> Unit,
-            onRecordClick: () -> Unit,
-            onLocationClick: () -> Unit) {
+fun AuraApp(
+    onSOSClick: () -> Unit,
+    onRecordClick: () -> Unit,
+    onLocationClick: () -> Unit
+) {
 
     var showSplash by remember { mutableStateOf(true) }
+    var currentScreen by remember { mutableStateOf("home") }
 
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(4000)
+        kotlinx.coroutines.delay(2000)
         showSplash = false
     }
 
     if (showSplash) {
         AuraSplashScreen()
     } else {
-        HomeScreen(
-            onSOSClick = onSOSClick,
-            onRecordClick = onRecordClick,
-            onLocationClick = onLocationClick
-        )
+        when (currentScreen) {
+
+            "home" -> HomeScreen(
+                onSOSClick = onSOSClick,
+                onRecordClick = onRecordClick,
+                onLocationClick = onLocationClick,
+                onContactsClick = { currentScreen = "contacts" }
+            )
+
+            "contacts" -> ContactsScreen(
+                onBack = { currentScreen = "home" }
+            )
+        }
     }
 }

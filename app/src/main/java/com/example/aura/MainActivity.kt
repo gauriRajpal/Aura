@@ -384,6 +384,7 @@ import android.hardware.*
 import android.os.*
 import android.speech.tts.TextToSpeech
 import android.telephony.SmsManager
+import android.util.Log
 import android.view.KeyEvent
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -488,32 +489,214 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     // ---------------- MAIN EMERGENCY ----------------
-    private fun triggerEmergency() {
+//    private fun triggerEmergency() {
+//
+//        val phoneNumber = "+919799919727"
+//        val smsManager = SmsManager.getDefault()
+//
+//        if (ActivityCompat.checkSelfPermission(
+//                this, Manifest.permission.ACCESS_FINE_LOCATION
+//            ) != PackageManager.PERMISSION_GRANTED) {
+//            Toast.makeText(this, "No location permission", Toast.LENGTH_LONG).show()
+//            return
+//        }
+//
+//        Toast.makeText(this, "Getting location…", Toast.LENGTH_SHORT).show()
+//
+//        fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+//            val msg =
+//                if (loc != null)
+//                    "🚨 EMERGENCY!\nhttps://maps.google.com/?q=${loc.latitude},${loc.longitude}"
+//                else
+//                    "🚨 EMERGENCY! Location unavailable"
+//
+//            smsManager.sendTextMessage(phoneNumber, null, msg, null, null)
+//
+//            tts.speak("Emergency alert sent", TextToSpeech.QUEUE_FLUSH, null, null)
+//        }
 
-        val phoneNumber = "+919799919727"
-        val smsManager = SmsManager.getDefault()
+//    }
+private fun triggerEmergency() {
 
-        if (ActivityCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "No location permission", Toast.LENGTH_LONG).show()
-            return
-        }
+    val smsManager = SmsManager.getDefault()
 
-        Toast.makeText(this, "Getting location…", Toast.LENGTH_SHORT).show()
+    if (ActivityCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) != PackageManager.PERMISSION_GRANTED
+    ) {
+        Toast.makeText(this, "No location permission", Toast.LENGTH_LONG).show()
+        return
+    }
 
-        fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-            val msg =
-                if (loc != null)
-                    "🚨 EMERGENCY!\nhttps://maps.google.com/?q=${loc.latitude},${loc.longitude}"
-                else
-                    "🚨 EMERGENCY! Location unavailable"
+    Toast.makeText(this, "Getting location…", Toast.LENGTH_SHORT).show()
 
-            smsManager.sendTextMessage(phoneNumber, null, msg, null, null)
+    val database = FirebaseDatabase.getInstance(
+        "https://aura-b8c86-default-rtdb.asia-southeast1.firebasedatabase.app"
+    )
 
-            tts.speak("Emergency alert sent", TextToSpeech.QUEUE_FLUSH, null, null)
+    val contactsRef = database.getReference("users/user1/contacts")
+
+    var sent = false
+
+    // 🔹 Try last known location first
+    fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+
+        val message =
+            if (loc != null)
+                "🚨 EMERGENCY!\nhttps://maps.google.com/?q=${loc.latitude},${loc.longitude}"
+            else
+                "🚨 EMERGENCY! Location unavailable."
+
+        contactsRef.get().addOnSuccessListener { snapshot ->
+
+            if (!snapshot.exists()) {
+                Toast.makeText(this, "No contacts saved", Toast.LENGTH_LONG).show()
+                return@addOnSuccessListener
+            }
+
+//            snapshot.children.forEach { child ->
+//
+//                var number = child.child("number").value?.toString()
+//
+//                Log.d("AURA_DEBUG", "Raw Firebase number = $number")
+//
+//                number = number?.replace("\"", "")
+//                    ?.replace(" ", "")
+//                    ?.replace("-", "")
+//                    ?.trim()
+//
+//                if (number != null && number.length == 10) {
+//                    number = "+91$number"
+//                }
+//
+//                Log.d("AURA_DEBUG", "Normalized number = $number")
+//
+//                // 🔴 TEMP: send to your own number to verify loop runs
+//                val testNumber = "+919799919727"
+//
+//                try {
+//                    smsManager.sendTextMessage(testNumber, null, message, null, null)
+//                    Log.d("AURA_DEBUG", "SMS attempt made")
+//                } catch (e: Exception) {
+//                    Log.d("AURA_DEBUG", "SMS failed: ${e.message}")
+//                }
+//            }
+
+            snapshot.children.forEach { child ->
+                Log.d("AURA_DEBUG", "Child value = ${child.value}")
+                Log.d("AURA_DEBUG", "Child children = ${child.children.toList()}")
+
+                var number = child.child("number").value?.toString()
+
+                if (!number.isNullOrBlank()) {
+
+                    // 🔹 Normalize number safely
+                    number = number.replace("\"", "")
+                        .replace(" ", "")
+                        .replace("-", "")
+                        .trim()
+
+                    if (number.length == 10) {
+                        number = "+91$number"
+                    }
+
+                    try {
+                        Log.d("AURA_DEBUG", "Child value = ${child.value}")
+                        Log.d("AURA_DEBUG", "Child children = ${child.children.toList()}")
+                        smsManager.sendTextMessage(number, null, message, null, null)
+                        Toast.makeText(this, "Sent to $number", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "Failed for $number", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+
+
+
+            Toast.makeText(this, "SOS sent to all contacts", Toast.LENGTH_LONG).show()
+            sent = true
         }
     }
+
+    // 🔹 Request fresh GPS if needed
+    Handler(mainLooper).postDelayed({
+
+        if (sent) return@postDelayed
+
+        val req = LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY, 1000
+        ).setMaxUpdates(1).build()
+
+        val cb = object : LocationCallback() {
+            override fun onLocationResult(res: LocationResult) {
+
+                val loc = res.lastLocation
+
+                val message =
+                    if (loc != null)
+                        "🚨 EMERGENCY!\nhttps://maps.google.com/?q=${loc.latitude},${loc.longitude}"
+                    else
+                        "🚨 EMERGENCY! Location unavailable."
+
+                contactsRef.get().addOnSuccessListener { snapshot ->
+
+                    snapshot.children.forEach { child ->
+
+                        val number = child.child("number").value?.toString()
+
+                        if (!number.isNullOrBlank()) {
+                            try {
+                                smsManager.sendTextMessage(number, null, message, null, null)
+                            } catch (e: Exception) {
+                                Toast.makeText(this@MainActivity, "Failed for $number", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+
+                    Toast.makeText(this@MainActivity, "SOS sent with fresh GPS", Toast.LENGTH_LONG).show()
+                    sent = true
+                }
+
+                fusedLocationClient.removeLocationUpdates(this)
+            }
+        }
+
+        fusedLocationClient.requestLocationUpdates(req, cb, mainLooper)
+
+    }, 2000)
+
+    // 🔹 Hard fallback
+    Handler(mainLooper).postDelayed({
+
+        if (!sent) {
+
+            contactsRef.get().addOnSuccessListener { snapshot ->
+
+                snapshot.children.forEach { child ->
+
+                    val number = child.child("number").value?.toString()
+
+                    if (!number.isNullOrBlank()) {
+                        try {
+                            smsManager.sendTextMessage(
+                                number,
+                                null,
+                                "🚨 EMERGENCY! Location unavailable.",
+                                null,
+                                null
+                            )
+                        } catch (_: Exception) {}
+                    }
+                }
+
+                Toast.makeText(this, "Fallback SMS sent", Toast.LENGTH_LONG).show()
+            }
+        }
+
+    }, 7000)
+}
+
 
     // ---------------- RECORDING STUB ----------------
     private fun startRecording() {

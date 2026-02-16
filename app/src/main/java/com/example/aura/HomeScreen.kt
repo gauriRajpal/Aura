@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,7 +46,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun HomeScreen( onSOSClick: () -> Unit,
                 onRecordClick: () -> Unit,
-                onLocationClick: () -> Unit) {
+                onLocationClick: () -> Unit,
+                onContactsClick: () -> Unit) {
 
     var smartWalkEnabled by remember { mutableStateOf(false) }
     var isRecording by remember { mutableStateOf(false) }
@@ -226,11 +228,18 @@ fun HomeScreen( onSOSClick: () -> Unit,
                     onClick = { onLocationClick() }
                 )
 
+                var showContacts by remember { mutableStateOf(false) }
+
                 FeatureRow(
                     title = "Emergency Contacts",
                     subtitle = "Manage contacts",
-                    onClick = { /* Navigate */ }
+                    onClick = { onContactsClick() }
                 )
+
+//                if (showContacts) {
+//                    ContactsScreen()
+//                }
+
 
                 FeatureRow(
                     title = "Fake Call",
