@@ -183,8 +183,8 @@ fun HomeScreen(
                 )
 
                 FeatureRow(
-                    title = "Live Location",
-                    subtitle = "Share with Guardians",
+                    title = "Safe Locations",
+                    subtitle = "Find safe locations",
                     onClick = onLocationClick
                 )
 
