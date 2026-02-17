@@ -1,4 +1,11 @@
 package com.example.aura
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+
+
 
 
 import androidx.compose.animation.core.RepeatMode
@@ -42,8 +49,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 @Composable
+
 fun HomeScreen( onSOSClick: () -> Unit,
                 onRecordClick: () -> Unit,
                 onLocationClick: () -> Unit,
@@ -51,6 +61,22 @@ fun HomeScreen( onSOSClick: () -> Unit,
 
     var smartWalkEnabled by remember { mutableStateOf(false) }
     var isRecording by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val audioRecorder = remember { AudioRecorder(context) }
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            Toast.makeText(context, "Mic permission granted", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Mic permission denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+
+
 
     Box(
         modifier = Modifier
@@ -242,18 +268,70 @@ fun HomeScreen( onSOSClick: () -> Unit,
 
 
                 FeatureRow(
-                    title = "Fake Call",
-                    subtitle = "Trigger escape call",
-                    onClick = { /* Trigger fake call */ }
-                )
-
-                FeatureRow(
                     title = "Recording",
                     subtitle = if (isRecording) "Recording..." else "Tap to Record",
-                    onClick = { isRecording = !isRecording
-                        onRecordClick()}
+                    onClick = {
+
+                        val hasPermission = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.RECORD_AUDIO
+                        ) == PackageManager.PERMISSION_GRANTED
+
+                        if (!hasPermission) {
+                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        } else {
+                            try {
+                                if (!isRecording) {
+                                    audioRecorder.startRecording()
+                                    Toast.makeText(context, "Recording started", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val file = audioRecorder.stopRecording()
+                                    Toast.makeText(context, "Saved: ${file?.name}", Toast.LENGTH_LONG).show()
+                                }
+                                isRecording = !isRecording
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
                 )
+
+
+
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+// 🎙 View Recordings Button
+                Button(
+                    onClick = { showHistory = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("View Saved Recordings")
+                }
+
+
+
             }
+                        }
+
+                    }
+    // 🎙 Recording History Overlay
+    if (showHistory) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.85f))
+        ) {
+            RecordingHistoryScreen(
+                onBack = { showHistory = false }
+            )
         }
     }
+
+
 }
+
+
+
+
+
