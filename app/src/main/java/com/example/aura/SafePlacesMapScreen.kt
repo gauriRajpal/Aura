@@ -195,7 +195,7 @@ fun SafePlacesMapScreen(onBack: () -> Unit) {
         if (!Places.isInitialized()) {
             Places.initialize(
                 context,
-                "AIzaSyDxr8vBeEZuxnyTwXZ68-aySE-C0UEVSpk"
+                "Your API key"
             )
         }
     }
