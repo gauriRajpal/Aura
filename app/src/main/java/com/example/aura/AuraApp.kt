@@ -17,9 +17,23 @@ fun AuraApp() {
         showSplash = false
     }
 
+    var currentScreen by remember { mutableStateOf("home") }
+
     if (showSplash) {
+
         AuraSplashScreen()
+
     } else {
-        HomeScreen()
+
+        when (currentScreen) {
+
+            "home" -> HomeScreen(
+                onFakeCallClick = { currentScreen = "fake" }
+            )
+
+            "fake" -> FakeCallScreen(
+                onEndCall = { currentScreen = "home" }
+            )
+        }
     }
 }

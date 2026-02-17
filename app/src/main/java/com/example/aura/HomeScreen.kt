@@ -41,8 +41,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+
 @Composable
-fun HomeScreen() {
+fun HomeScreen(onFakeCallClick: () -> Unit) {
 
     var smartWalkEnabled by remember { mutableStateOf(false) }
     var isRecording by remember { mutableStateOf(false) }
@@ -228,10 +229,12 @@ fun HomeScreen() {
                     onClick = { /* Navigate */ }
                 )
 
+
                 FeatureRow(
                     title = "Fake Call",
                     subtitle = "Trigger escape call",
-                    onClick = { /* Trigger fake call */ }
+                    onClick = { onFakeCallClick() }
+
                 )
 
                 FeatureRow(
