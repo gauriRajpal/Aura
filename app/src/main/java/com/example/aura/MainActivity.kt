@@ -396,6 +396,7 @@ import com.google.android.gms.location.*
 import com.google.firebase.database.FirebaseDatabase
 import java.util.Locale
 import kotlin.math.sqrt
+import androidx.compose.runtime.mutableStateListOf
 
 class MainActivity : ComponentActivity(), SensorEventListener {
 
@@ -405,21 +406,68 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     private lateinit var sensorManager: SensorManager
     private var lastShakeTime: Long = 0
 
+    private var shakeCount = 0
+    private var firstShakeTime = 0L
+
+
     private lateinit var tts: TextToSpeech
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var radar: BluetoothRadar
+
+
+    val detectedDevices = mutableStateListOf<Pair<String, Int>>()
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+
         // Permissions
         val perms = mutableListOf(
             Manifest.permission.SEND_SMS,
             Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT
         )
 
-        ActivityCompat.requestPermissions(this, perms.toTypedArray(), 101)
+
+//        radar = BluetoothRadar(this) {
+//            Toast.makeText(this, "⚠️ Same device following you", Toast.LENGTH_LONG).show()
+//            triggerEmergency()
+//        }
+
+
+        radar = BluetoothRadar(
+            context = this,
+            onDeviceFound = { name, count ->
+
+                val index = detectedDevices.indexOfFirst { it.first == name }
+
+                if (index >= 0) {
+                    detectedDevices[index] = name to count
+                } else {
+                    detectedDevices.add(name to count)
+                }
+            },
+            onSuspicious = { name ->
+                Toast.makeText(this, "⚠ Frequent nearby device: $name", Toast.LENGTH_LONG).show()
+            }
+        )
+
+
+
+        val btperms = mutableListOf(
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT
+        )
+
+        ActivityCompat.requestPermissions(this, btperms.toTypedArray(), 101)
+
 
         // Sensors
         sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
@@ -439,6 +487,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         setContent {
             AuraTheme {
                 AuraApp(
+                    detectedDevices = detectedDevices,
                     onSOSClick = { triggerEmergency() },
                     onRecordClick = { startRecording() },
                     onLocationClick = { triggerEmergency() }
@@ -446,6 +495,22 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             }
         }
     }
+/// Scan
+override fun onRequestPermissionsResult(
+    requestCode: Int,
+    permissions: Array<String>,
+    grantResults: IntArray
+) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+    if (requestCode == 101 &&
+        grantResults.isNotEmpty() &&
+        grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+
+        radar.startScan()
+    }
+}
+
 
     // ---------------- VOLUME TRIGGER ----------------
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -468,55 +533,67 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     }
 
     // ---------------- SHAKE TRIGGER ----------------
-    override fun onSensorChanged(event: SensorEvent?) {
-        event?.let {
-            val acc = sqrt(
-                (it.values[0]*it.values[0] +
-                        it.values[1]*it.values[1] +
-                        it.values[2]*it.values[2]).toDouble()
-            )
+//    override fun onSensorChanged(event: SensorEvent?) {
+//        event?.let {
+//            val acc = sqrt(
+//                (it.values[0]*it.values[0] +
+//                        it.values[1]*it.values[1] +
+//                        it.values[2]*it.values[2]).toDouble()
+//            )
+//
+//            if (acc > 18) {
+//                val now = System.currentTimeMillis()
+//                if (now - lastShakeTime > 1500) {
+//                    lastShakeTime = now
+//                    triggerEmergency()
+//                }
+//            }
+//        }
+//    }
 
-            if (acc > 18) {
+    override fun onSensorChanged(event: SensorEvent?) {
+
+        event?.let {
+
+            val x = it.values[0]
+            val y = it.values[1]
+            val z = it.values[2]
+
+            val acceleration = sqrt((x*x + y*y + z*z).toDouble())
+
+            if (acceleration > 18) {
+
                 val now = System.currentTimeMillis()
-                if (now - lastShakeTime > 1500) {
-                    lastShakeTime = now
+
+                if (shakeCount == 0) {
+                    firstShakeTime = now
+                }
+
+                shakeCount++
+
+                // Reset if shaking too slow
+                if (now - firstShakeTime > 6000) {
+                    shakeCount = 0
+                }
+
+                // Trigger after enough spikes in 6 sec window
+                if (shakeCount >= 12) {
+                    shakeCount = 0
                     triggerEmergency()
                 }
             }
         }
     }
 
+
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     // ---------------- MAIN EMERGENCY ----------------
-//    private fun triggerEmergency() {
-//
-//        val phoneNumber = "+919799919727"
-//        val smsManager = SmsManager.getDefault()
-//
-//        if (ActivityCompat.checkSelfPermission(
-//                this, Manifest.permission.ACCESS_FINE_LOCATION
-//            ) != PackageManager.PERMISSION_GRANTED) {
-//            Toast.makeText(this, "No location permission", Toast.LENGTH_LONG).show()
-//            return
-//        }
-//
-//        Toast.makeText(this, "Getting location…", Toast.LENGTH_SHORT).show()
-//
-//        fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-//            val msg =
-//                if (loc != null)
-//                    "🚨 EMERGENCY!\nhttps://maps.google.com/?q=${loc.latitude},${loc.longitude}"
-//                else
-//                    "🚨 EMERGENCY! Location unavailable"
-//
-//            smsManager.sendTextMessage(phoneNumber, null, msg, null, null)
-//
-//            tts.speak("Emergency alert sent", TextToSpeech.QUEUE_FLUSH, null, null)
-//        }
 
-//    }
 private fun triggerEmergency() {
+    if (System.currentTimeMillis() - lastShakeTime < 5000) return
+    lastShakeTime = System.currentTimeMillis()
+
 
     val smsManager = SmsManager.getDefault()
 
