@@ -28,12 +28,18 @@ fun AuraApp() {
         when (currentScreen) {
 
             "home" -> HomeScreen(
-                onFakeCallClick = { currentScreen = "fake" }
+                onFakeCallClick = { currentScreen = "fake" },
+                onSafeZoneClick = { currentScreen = "safezone" }
             )
+
 
             "fake" -> FakeCallScreen(
                 onEndCall = { currentScreen = "home" }
             )
+            "safezone" -> SafeZoneScreen {
+                currentScreen = "home"
+            }
+
         }
     }
 }

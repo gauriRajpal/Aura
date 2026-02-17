@@ -43,7 +43,11 @@ import androidx.compose.ui.unit.sp
 
 
 @Composable
-fun HomeScreen(onFakeCallClick: () -> Unit) {
+fun HomeScreen(
+    onFakeCallClick: () -> Unit,
+    onSafeZoneClick: () -> Unit,
+)
+ {
 
     var smartWalkEnabled by remember { mutableStateOf(false) }
     var isRecording by remember { mutableStateOf(false) }
@@ -216,6 +220,12 @@ fun HomeScreen(onFakeCallClick: () -> Unit) {
                     subtitle = if (smartWalkEnabled) "Active" else "Inactive",
                     onClick = { smartWalkEnabled = !smartWalkEnabled }
                 )
+                FeatureRow(
+                    title = "Safe Zone Map",
+                    subtitle = "View safety score & heatmap",
+                    onClick = onSafeZoneClick
+                )
+
 
                 FeatureRow(
                     title = "Live Location",
