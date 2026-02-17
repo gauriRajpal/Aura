@@ -170,142 +170,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
-//@Composable
-//fun SafePlacesMapScreen(onBack: () -> Unit) {
-//
-//    val context = LocalContext.current
-//
-//    LaunchedEffect(Unit) {
-//        if (!Places.isInitialized()) {
-//            Places.initialize(context, "AIzaSyDxr8vBeEZuxnyTwXZ68-aySE-C0UEVSpk")   // 🔴 PUT YOUR KEY HERE
-//        }
-//    }
-//
-//    AndroidView(
-//        factory = { ctx ->
-//
-//            MapView(ctx).apply {
-//
-//                onCreate(null)
-//
-//                getMapAsync { map ->
-//
-//                    map.uiSettings.isZoomControlsEnabled = true
-//
-//                    val fusedLocationClient =
-//                        LocationServices.getFusedLocationProviderClient(ctx)
-//
-//                    if (ActivityCompat.checkSelfPermission(
-//                            ctx,
-//                            Manifest.permission.ACCESS_FINE_LOCATION
-//                        ) == PackageManager.PERMISSION_GRANTED
-//                    ) {
-//
-//                        map.isMyLocationEnabled = true
-//
-//                        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-//
-//                            if (location != null) {
-//
-//                                val userLatLng = LatLng(location.latitude, location.longitude)
-//
-//                                map.moveCamera(
-//                                    CameraUpdateFactory.newLatLngZoom(userLatLng, 15f)
-//                                )
-//
-//                                map.addMarker(
-//                                    MarkerOptions()
-//                                        .position(userLatLng)
-//                                        .title("You are here")
-//                                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
-//                                )
-//
-//                                // ⭐ FETCH REAL SAFE PLACES
-//                                fetchSafePlaces(ctx, userLatLng) { places, nearest ->
-//
-//                                    places.forEach { place ->
-//
-//                                        val latLng = place.latLng ?: return@forEach
-//                                        val distance = distanceBetween(userLatLng, latLng).toInt()
-//
-//                                        val isNearest = place == nearest
-//
-//                                        val marker = map.addMarker(
-//                                            MarkerOptions()
-//                                                .position(latLng)
-//                                                .title("${place.name} (${distance} m)")
-//                                                .icon(
-//                                                    BitmapDescriptorFactory.defaultMarker(
-//                                                        if (isNearest)
-//                                                            BitmapDescriptorFactory.HUE_AZURE
-//                                                        else
-//                                                            BitmapDescriptorFactory.HUE_GREEN
-//                                                    )
-//                                                )
-//                                        )
-//
-//                                        if (isNearest) marker?.showInfoWindow()
-//                                    }
-//                                }
-//
-//
-//                            } else {
-//                                val fallback = LatLng(26.4499, 74.6399)
-//                                map.moveCamera(
-//                                    CameraUpdateFactory.newLatLngZoom(fallback, 14f)
-//                                )
-//                            }
-//                        }
-//
-//                    } else {
-//                        val fallback = LatLng(26.4499, 74.6399)
-//                        map.moveCamera(
-//                            CameraUpdateFactory.newLatLngZoom(fallback, 14f)
-//                        )
-//                    }
-//                }
-//            }
-//        },
-//        modifier = Modifier.fillMaxSize()
-//    )
-//}
-//fun fetchSafePlaces(
-//    context: android.content.Context,
-//    location: LatLng,
-//    onResult: (List<Place>) -> Unit
-//) {
-//
-//    val hasPermission =
-//        androidx.core.content.ContextCompat.checkSelfPermission(
-//            context,
-//            Manifest.permission.ACCESS_FINE_LOCATION
-//        ) == PackageManager.PERMISSION_GRANTED
-//
-//    if (!hasPermission) {
-//        onResult(emptyList())
-//        return
-//    }
-//
-//    val client = Places.createClient(context)
-//
-//    val fields = listOf(
-//        Place.Field.NAME,
-//        Place.Field.LAT_LNG
-//    )
-//
-//    val request = FindCurrentPlaceRequest.newInstance(fields)
-//
-//    client.findCurrentPlace(request)
-//        .addOnSuccessListener { response ->
-//            val places = response.placeLikelihoods.map { it.place }
-//            onResult(places)
-//        }
-//        .addOnFailureListener {
-//            onResult(emptyList())
-//        }
-//
-//}
+import androidx.compose.ui.unit.dp
+
 @Composable
 fun SafePlacesMapScreen(onBack: () -> Unit) {
 
@@ -321,6 +200,17 @@ fun SafePlacesMapScreen(onBack: () -> Unit) {
         }
     }
 Column(Modifier.fillMaxSize()){
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+
+        Button(onClick = { onBack() }) {
+            Text("← Back")
+        }
+    }
     AndroidView(
         factory = { ctx ->
 
