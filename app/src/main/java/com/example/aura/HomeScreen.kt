@@ -59,6 +59,7 @@ fun HomeScreen(
     onContactsClick: () -> Unit,
     onRadarClick: () -> Unit,
     onFakeCallClick: () -> Unit,
+    onSmartWalkClick: () -> Unit,
     detectedDevices: List<Pair<String, Int>>
 ) {
 
@@ -170,10 +171,15 @@ fun HomeScreen(
 
             Column {
 
+//                FeatureRow(
+//                    title = "Smart Walk",
+//                    subtitle = if (smartWalkEnabled) "Active" else "Inactive",
+//                    onClick = { smartWalkEnabled = !smartWalkEnabled }
+//                )
                 FeatureRow(
                     title = "Smart Walk",
-                    subtitle = if (smartWalkEnabled) "Active" else "Inactive",
-                    onClick = { smartWalkEnabled = !smartWalkEnabled }
+                    subtitle = "Tap to start monitoring",
+                    onClick = { onSmartWalkClick() }
                 )
 
                 FeatureRow(

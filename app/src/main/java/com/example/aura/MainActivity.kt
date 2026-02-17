@@ -386,10 +386,12 @@ import android.speech.tts.TextToSpeech
 import android.telephony.SmsManager
 import android.util.Log
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.getValue
 import androidx.core.app.ActivityCompat
 import com.example.aura.ui.theme.AuraTheme
 import com.google.android.gms.location.*
@@ -397,6 +399,8 @@ import com.google.firebase.database.FirebaseDatabase
 import java.util.Locale
 import kotlin.math.sqrt
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 
 class MainActivity : ComponentActivity(), SensorEventListener {
 
@@ -405,17 +409,23 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     private lateinit var sensorManager: SensorManager
     private var lastShakeTime: Long = 0
-
+    private var smartWalkRunning = false
+    private var lastMovementTime = 0L
+    private var askedSafety = false
     private var shakeCount = 0
     private var firstShakeTime = 0L
-
+    private var waitingForResponse = false
 
     private lateinit var tts: TextToSpeech
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var radar: BluetoothRadar
 
+    var showSafetyDialog = mutableStateOf(false)
+
+    private var smartWalkEnabled = false
 
     val detectedDevices = mutableStateListOf<Pair<String, Int>>()
+    private var emergencyTriggered = false
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -490,26 +500,84 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     detectedDevices = detectedDevices,
                     onSOSClick = { triggerEmergency() },
                     onRecordClick = { startRecording() },
-                    onLocationClick = { triggerEmergency() }
+                    onLocationClick = { triggerEmergency() },
+                    onSmartWalkClick = { toggleSmartWalk() },
+                    showSafetyDialog = showSafetyDialog.value,
+                    onDismissSafetyDialog = { showSafetyDialog.value = false }
                 )
             }
         }
     }
-/// Scan
-override fun onRequestPermissionsResult(
-    requestCode: Int,
-    permissions: Array<String>,
-    grantResults: IntArray
-) {
-    super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    /// Scan
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
-    if (requestCode == 101 &&
-        grantResults.isNotEmpty() &&
-        grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+        if (requestCode == 101 &&
+            grantResults.isNotEmpty() &&
+            grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
 
-        radar.startScan()
+            radar.startScan()
+        }
     }
-}
+
+
+//    private fun startSmartWalk() {
+//
+//        smartWalkRunning = true
+//        lastMovementTime = System.currentTimeMillis()
+//
+//        Toast.makeText(
+//            this,
+//            "Smart Walk started — monitoring movement",
+//            Toast.LENGTH_LONG
+//        ).show()
+//    }
+//private fun startSmartWalk() {
+//
+//    smartWalkRunning = !smartWalkRunning   // ← this makes it toggle
+//
+//    Toast.makeText(
+//        this,
+//        if (smartWalkRunning)
+//            "Smart Walk started — monitoring movement"
+//        else
+//            "Smart Walk stopped",
+//        Toast.LENGTH_SHORT
+//    ).show()
+//
+//    if (smartWalkRunning) {
+//        lastMovementTime = System.currentTimeMillis()
+//        waitingForResponse = false
+//    }
+//}
+
+
+    private fun toggleSmartWalk() {
+
+        smartWalkRunning = !smartWalkRunning
+
+        Toast.makeText(
+            this,
+            if (smartWalkRunning)
+                "Smart Walk started — monitoring movement"
+            else
+                "Smart Walk stopped",
+            Toast.LENGTH_SHORT
+        ).show()
+
+        // Reset timer when starting
+        if (smartWalkRunning) {
+            lastMovementTime = System.currentTimeMillis()
+            waitingForResponse = false
+        }
+
+        // Reset timer when starting
+
+    }
 
 
     // ---------------- VOLUME TRIGGER ----------------
@@ -551,38 +619,149 @@ override fun onRequestPermissionsResult(
 //        }
 //    }
 
-    override fun onSensorChanged(event: SensorEvent?) {
+//    override fun onSensorChanged(event: SensorEvent?) {
+//
+//        event?.let {
+//
+//            val x = it.values[0]
+//            val y = it.values[1]
+//            val z = it.values[2]
+//
+//            val acceleration = sqrt((x*x + y*y + z*z).toDouble())
+//
+//            if (acceleration > 18) {
+//
+//                val now = System.currentTimeMillis()
+//
+//                if (shakeCount == 0) {
+//                    firstShakeTime = now
+//                }
+//
+//                shakeCount++
+//
+//                // Reset if shaking too slow
+//                if (now - firstShakeTime > 6000) {
+//                    shakeCount = 0
+//                }
+//
+//                // Trigger after enough spikes in 6 sec window
+//                if (shakeCount >= 12) {
+//                    shakeCount = 0
+//                    triggerEmergency()
+//                }
+//            }
+//        }
+//    }
+override fun onSensorChanged(event: SensorEvent?) {
 
-        event?.let {
+    event ?: return
 
-            val x = it.values[0]
-            val y = it.values[1]
-            val z = it.values[2]
+    val x = event.values[0]
+    val y = event.values[1]
+    val z = event.values[2]
 
-            val acceleration = sqrt((x*x + y*y + z*z).toDouble())
+    val acceleration = sqrt((x*x + y*y + z*z).toDouble())
+    val now = System.currentTimeMillis()
 
-            if (acceleration > 18) {
+    // 🔴 SHAKE SOS (your existing logic)
+    if (acceleration > 18) {
 
-                val now = System.currentTimeMillis()
-
-                if (shakeCount == 0) {
-                    firstShakeTime = now
-                }
-
-                shakeCount++
-
-                // Reset if shaking too slow
-                if (now - firstShakeTime > 6000) {
-                    shakeCount = 0
-                }
-
-                // Trigger after enough spikes in 6 sec window
-                if (shakeCount >= 12) {
-                    shakeCount = 0
-                    triggerEmergency()
-                }
-            }
+        if (shakeCount == 0) {
+            firstShakeTime = now
         }
+
+        shakeCount++
+
+        if (now - firstShakeTime > 6000) {
+            shakeCount = 0
+        }
+
+        if (shakeCount >= 12) {
+            shakeCount = 0
+            triggerEmergency()
+        }
+    }
+
+//    // 🟢 SMART WALK LOGIC
+//    if (!smartWalkRunning) return
+//
+//    // Detect movement
+//    if (acceleration > 11) {
+//        lastMovementTime = now
+//        if (waitingForResponse) {
+//            waitingForResponse = false
+//            Toast.makeText(this, "Okay, you are safe", Toast.LENGTH_SHORT).show()
+//        }
+//
+//    }
+//
+//    // If stopped for 6 sec → ask user
+//    if (now - lastMovementTime > 6000 && !waitingForResponse) {
+//
+//        waitingForResponse = true
+//        tts.speak(
+//            "Are you safe? Please move your phone or touch the screen",
+//            TextToSpeech.QUEUE_FLUSH,
+//            null,
+//            null
+//        )
+//       Toast.makeText(this, "Are you safe?", Toast.LENGTH_SHORT).show()
+//
+//        Handler(mainLooper).postDelayed({
+//
+//            // If still no movement after 3 sec → SOS
+////            if (System.currentTimeMillis() - lastMovementTime > 9000) {
+////                triggerEmergency()
+////            }
+//            if (waitingForResponse ) {
+//                triggerEmergency()
+//                waitingForResponse = false
+//            }
+//
+//        }, 5000)
+    // 🟢 SMART WALK LOGIC
+    if (!smartWalkRunning) return
+
+// Movement detected
+    if (acceleration > 11) {
+
+        lastMovementTime = now
+
+        // If user was being checked → mark safe
+        if (waitingForResponse) {
+            waitingForResponse = false
+            Toast.makeText(this, "Okay, you are safe", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+// If stopped for 6 sec → ask user
+    if (now - lastMovementTime > 6000 && !waitingForResponse) {
+
+        waitingForResponse = true
+
+        Toast.makeText(this, "Are you safe?", Toast.LENGTH_SHORT).show()
+
+        // Wait 5 sec for response
+        Handler(mainLooper).postDelayed({
+
+            if (waitingForResponse) {
+                triggerEmergency()
+            }
+
+        }, 5000)
+    }
+    }
+
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+
+        if (waitingForResponse) {
+            waitingForResponse = false
+            Toast.makeText(this, "Okay, you are safe", Toast.LENGTH_SHORT).show()
+            lastMovementTime = System.currentTimeMillis()
+        }
+
+        return super.dispatchTouchEvent(ev)
     }
 
 
@@ -590,47 +769,47 @@ override fun onRequestPermissionsResult(
 
     // ---------------- MAIN EMERGENCY ----------------
 
-private fun triggerEmergency() {
-    if (System.currentTimeMillis() - lastShakeTime < 5000) return
-    lastShakeTime = System.currentTimeMillis()
+    private fun triggerEmergency() {
+        if (System.currentTimeMillis() - lastShakeTime < 5000) return
+        lastShakeTime = System.currentTimeMillis()
 
 
-    val smsManager = SmsManager.getDefault()
+        val smsManager = SmsManager.getDefault()
 
-    if (ActivityCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) != PackageManager.PERMISSION_GRANTED
-    ) {
-        Toast.makeText(this, "No location permission", Toast.LENGTH_LONG).show()
-        return
-    }
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+           Toast.makeText(this, "No location permission", Toast.LENGTH_LONG).show()
+            return
+        }
 
-    Toast.makeText(this, "Getting location…", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Getting location…", Toast.LENGTH_SHORT).show()
 
-    val database = FirebaseDatabase.getInstance(
-        "https://aura-b8c86-default-rtdb.asia-southeast1.firebasedatabase.app"
-    )
+        val database = FirebaseDatabase.getInstance(
+            "https://aura-b8c86-default-rtdb.asia-southeast1.firebasedatabase.app"
+        )
 
-    val contactsRef = database.getReference("users/user1/contacts")
+        val contactsRef = database.getReference("users/user1/contacts")
 
-    var sent = false
+        var sent = false
 
-    // 🔹 Try last known location first
-    fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+        // 🔹 Try last known location first
+        fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
 
-        val message =
-            if (loc != null)
-                "🚨 EMERGENCY!\nhttps://maps.google.com/?q=${loc.latitude},${loc.longitude}"
-            else
-                "🚨 EMERGENCY! Location unavailable."
+            val message =
+                if (loc != null)
+                    "🚨 EMERGENCY!\nhttps://maps.google.com/?q=${loc.latitude},${loc.longitude}"
+                else
+                    "🚨 EMERGENCY! Location unavailable."
 
-        contactsRef.get().addOnSuccessListener { snapshot ->
+            contactsRef.get().addOnSuccessListener { snapshot ->
 
-            if (!snapshot.exists()) {
-                Toast.makeText(this, "No contacts saved", Toast.LENGTH_LONG).show()
-                return@addOnSuccessListener
-            }
+                if (!snapshot.exists()) {
+                    Toast.makeText(this, "No contacts saved", Toast.LENGTH_LONG).show()
+                    return@addOnSuccessListener
+                }
 
 //            snapshot.children.forEach { child ->
 //
@@ -660,61 +839,93 @@ private fun triggerEmergency() {
 //                }
 //            }
 
-            snapshot.children.forEach { child ->
-                Log.d("AURA_DEBUG", "Child value = ${child.value}")
-                Log.d("AURA_DEBUG", "Child children = ${child.children.toList()}")
+                snapshot.children.forEach { child ->
+                    Log.d("AURA_DEBUG", "Child value = ${child.value}")
+                    Log.d("AURA_DEBUG", "Child children = ${child.children.toList()}")
 
-                var number = child.child("number").value?.toString()
+                    var number = child.child("number").value?.toString()
 
-                if (!number.isNullOrBlank()) {
+                    if (!number.isNullOrBlank()) {
 
-                    // 🔹 Normalize number safely
-                    number = number.replace("\"", "")
-                        .replace(" ", "")
-                        .replace("-", "")
-                        .trim()
+                        // 🔹 Normalize number safely
+                        number = number.replace("\"", "")
+                            .replace(" ", "")
+                            .replace("-", "")
+                            .trim()
 
-                    if (number.length == 10) {
-                        number = "+91$number"
+                        if (number.length == 10) {
+                            number = "+91$number"
+                        }
+
+                        try {
+                            Log.d("AURA_DEBUG", "Child value = ${child.value}")
+                            Log.d("AURA_DEBUG", "Child children = ${child.children.toList()}")
+                            smsManager.sendTextMessage(number, null, message, null, null)
+//                            Toast.makeText(this, "Sent to $number", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(this, "Failed for $number", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+
+
+
+                Toast.makeText(this, "SOS sent to all contacts", Toast.LENGTH_LONG).show()
+                sent = true
+            }
+        }
+
+        // 🔹 Request fresh GPS if needed
+        Handler(mainLooper).postDelayed({
+
+            if (sent) return@postDelayed
+
+            val req = LocationRequest.Builder(
+                Priority.PRIORITY_HIGH_ACCURACY, 1000
+            ).setMaxUpdates(1).build()
+
+            val cb = object : LocationCallback() {
+                override fun onLocationResult(res: LocationResult) {
+
+                    val loc = res.lastLocation
+
+                    val message =
+                        if (loc != null)
+                            "🚨 EMERGENCY!\nhttps://maps.google.com/?q=${loc.latitude},${loc.longitude}"
+                        else
+                            "🚨 EMERGENCY! Location unavailable."
+
+                    contactsRef.get().addOnSuccessListener { snapshot ->
+
+                        snapshot.children.forEach { child ->
+
+                            val number = child.child("number").value?.toString()
+
+                            if (!number.isNullOrBlank()) {
+                                try {
+                                    smsManager.sendTextMessage(number, null, message, null, null)
+                                } catch (e: Exception) {
+                                    Toast.makeText(this@MainActivity, "Failed for $number", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+
+                        Toast.makeText(this@MainActivity, "SOS sent with fresh GPS", Toast.LENGTH_LONG).show()
+                        sent = true
                     }
 
-                    try {
-                        Log.d("AURA_DEBUG", "Child value = ${child.value}")
-                        Log.d("AURA_DEBUG", "Child children = ${child.children.toList()}")
-                        smsManager.sendTextMessage(number, null, message, null, null)
-                        Toast.makeText(this, "Sent to $number", Toast.LENGTH_SHORT).show()
-                    } catch (e: Exception) {
-                        Toast.makeText(this, "Failed for $number", Toast.LENGTH_SHORT).show()
-                    }
+                    fusedLocationClient.removeLocationUpdates(this)
                 }
             }
 
+            fusedLocationClient.requestLocationUpdates(req, cb, mainLooper)
 
+        }, 2000)
 
-            Toast.makeText(this, "SOS sent to all contacts", Toast.LENGTH_LONG).show()
-            sent = true
-        }
-    }
+        // 🔹 Hard fallback
+        Handler(mainLooper).postDelayed({
 
-    // 🔹 Request fresh GPS if needed
-    Handler(mainLooper).postDelayed({
-
-        if (sent) return@postDelayed
-
-        val req = LocationRequest.Builder(
-            Priority.PRIORITY_HIGH_ACCURACY, 1000
-        ).setMaxUpdates(1).build()
-
-        val cb = object : LocationCallback() {
-            override fun onLocationResult(res: LocationResult) {
-
-                val loc = res.lastLocation
-
-                val message =
-                    if (loc != null)
-                        "🚨 EMERGENCY!\nhttps://maps.google.com/?q=${loc.latitude},${loc.longitude}"
-                    else
-                        "🚨 EMERGENCY! Location unavailable."
+            if (!sent) {
 
                 contactsRef.get().addOnSuccessListener { snapshot ->
 
@@ -724,55 +935,23 @@ private fun triggerEmergency() {
 
                         if (!number.isNullOrBlank()) {
                             try {
-                                smsManager.sendTextMessage(number, null, message, null, null)
-                            } catch (e: Exception) {
-                                Toast.makeText(this@MainActivity, "Failed for $number", Toast.LENGTH_SHORT).show()
-                            }
+                                smsManager.sendTextMessage(
+                                    number,
+                                    null,
+                                    "🚨 EMERGENCY! Location unavailable.",
+                                    null,
+                                    null
+                                )
+                            } catch (_: Exception) {}
                         }
                     }
 
-                    Toast.makeText(this@MainActivity, "SOS sent with fresh GPS", Toast.LENGTH_LONG).show()
-                    sent = true
+                    Toast.makeText(this, "Fallback SMS sent", Toast.LENGTH_LONG).show()
                 }
-
-                fusedLocationClient.removeLocationUpdates(this)
             }
-        }
 
-        fusedLocationClient.requestLocationUpdates(req, cb, mainLooper)
-
-    }, 2000)
-
-    // 🔹 Hard fallback
-    Handler(mainLooper).postDelayed({
-
-        if (!sent) {
-
-            contactsRef.get().addOnSuccessListener { snapshot ->
-
-                snapshot.children.forEach { child ->
-
-                    val number = child.child("number").value?.toString()
-
-                    if (!number.isNullOrBlank()) {
-                        try {
-                            smsManager.sendTextMessage(
-                                number,
-                                null,
-                                "🚨 EMERGENCY! Location unavailable.",
-                                null,
-                                null
-                            )
-                        } catch (_: Exception) {}
-                    }
-                }
-
-                Toast.makeText(this, "Fallback SMS sent", Toast.LENGTH_LONG).show()
-            }
-        }
-
-    }, 7000)
-}
+        }, 7000)
+    }
 
 
     // ---------------- RECORDING STUB ----------------

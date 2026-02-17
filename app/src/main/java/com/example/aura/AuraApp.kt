@@ -9,7 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
-
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 //@Composable
 //fun AuraApp(onSOSClick: () -> Unit,
 //            onRecordClick: () -> Unit,
@@ -127,11 +129,17 @@ fun AuraApp(
     onSOSClick: () -> Unit,
     onRecordClick: () -> Unit,
     onLocationClick: () -> Unit,
-    detectedDevices: SnapshotStateList<Pair<String, Int>>
+    onSmartWalkClick: () -> Unit,
+    detectedDevices: SnapshotStateList<Pair<String, Int>>,
+    showSafetyDialog: Boolean,
+    onDismissSafetyDialog: () -> Unit
 ) {
 
     var showSplash by remember { mutableStateOf(true) }
     var currentScreen by remember { mutableStateOf("home") }
+    var showSafetyDialog by remember { mutableStateOf(false) }
+
+    var smartWalkEnabled by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(2000)
@@ -152,6 +160,7 @@ fun AuraApp(
             onContactsClick = { currentScreen = "contacts" },
             onRadarClick = { currentScreen = "radar" },
             onFakeCallClick = { currentScreen = "fake" },
+            onSmartWalkClick = onSmartWalkClick,
             detectedDevices = detectedDevices
         )
 
@@ -167,5 +176,19 @@ fun AuraApp(
         "fake" -> FakeCallScreen(
             onEndCall = { currentScreen = "home" }
         )
+
     }
+    if (showSafetyDialog) {
+        AlertDialog(
+            onDismissRequest = {},
+            confirmButton = {
+                Button(onClick = { showSafetyDialog = false }) {
+                    Text("I'm Safe")
+                }
+            },
+            title = { Text("Safety Check") },
+            text = { Text("We detected no movement.\nAre you safe?") }
+        )
+    }
+
 }
