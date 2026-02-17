@@ -156,7 +156,8 @@ fun AuraApp(
         "home" -> HomeScreen(
             onSOSClick = onSOSClick,
             onRecordClick = onRecordClick,
-            onLocationClick = onLocationClick,
+//            onLocationClick = onLocationClick,
+            onLocationClick = { currentScreen = "map" },
             onContactsClick = { currentScreen = "contacts" },
             onRadarClick = { currentScreen = "radar" },
             onFakeCallClick = { currentScreen = "fake" },
@@ -175,6 +176,9 @@ fun AuraApp(
 
         "fake" -> FakeCallScreen(
             onEndCall = { currentScreen = "home" }
+        )
+        "map" -> SafePlacesMapScreen(
+            onBack = { currentScreen = "home" }
         )
 
     }

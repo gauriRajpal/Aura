@@ -401,6 +401,7 @@ import kotlin.math.sqrt
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.google.android.libraries.places.api.Places
 
 class MainActivity : ComponentActivity(), SensorEventListener {
 
@@ -433,6 +434,9 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         enableEdgeToEdge()
 
 
+            if (!Places.isInitialized()) {
+                Places.initialize(applicationContext, "AIzaSyDxr8vBeEZuxnyTwXZ68-aySE-C0UEVSpk")
+            }
         // Permissions
         val perms = mutableListOf(
             Manifest.permission.SEND_SMS,
@@ -491,7 +495,9 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             if (it == TextToSpeech.SUCCESS) tts.language = Locale.US
         }
 
+
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
 
         // 🔴 IMPORTANT: CONNECT FRONTEND TO BACKEND HERE
         setContent {
